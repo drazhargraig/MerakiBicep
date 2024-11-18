@@ -1,0 +1,51 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "value": "northeurope"
+        },
+        "virtualNetworkName": {
+            "value": "vnet-jp-vmxtest-neu-01"
+        },
+        "virtualNetworkAddressPrefix": {
+            "value": "172.16.0.0/28"
+        },
+        "virtualNetworkNewOrExisting": {
+            "value": "existing"
+        },
+        "subnet1Name": {
+            "value": "snet-vmx-subnet1"
+        },
+        "subnet1AddressPrefix": {
+            "value": "172.16.0.0/29"
+        },
+        "subnet2Name": {
+            "value": "snet-vmx-subnet2"
+        },
+        "subnet2AddressPrefix": {
+            "value": "172.16.0.8/29"
+        },
+        "zone": {
+            "value": "0"
+        },
+        "virtualNetworkResourceGroup": {
+            "value": "jp-rg-ne-001"
+        },
+        "virtualMachineSize": {
+            "value": "Standard_F4s_v2"
+        },
+        "applicationResourceName": {
+            "value": "vmxdevneu"
+        },
+        "keyVaultName": {
+            "value": "vmx-keyvault"
+        },
+        "keyVaultResourceGroup": {
+            "value": "jp-rg-ne-001"
+        },
+        "vmName": {
+            "value": "vmx-jp-neu"
+        }
+    }
+} 

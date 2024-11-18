@@ -1,55 +1,55 @@
+// Parameters
 param location string
-param virtualNetworkName string
+param vnetName string
+param vnetResourceGroup string
 param virtualNetworkAddressPrefix string
-param virtualNetworkNewOrExisting string
 param subnet1Name string
 param subnet1AddressPrefix string
 param subnet2Name string
 param subnet2AddressPrefix string
-param zone string
-param virtualNetworkResourceGroup string
 param virtualMachineSize string
 param applicationResourceName string
 param keyVaultName string
 param keyVaultResourceGroup string
 param vmName string
+param zone string = '0'
+param virtualNetworkNewOrExisting string = 'existing'
 
-// This parameter can stay in the bicep file as it's dynamically generated
+// Calculate managed resource group ID
 param managedResourceGroupId string = '${subscription().id}/resourceGroups/${take('${resourceGroup().name}-${uniqueString(resourceGroup().id)}${uniqueString(applicationResourceName)}', 90)}'
 
-// Step 1: Create the Virtual Network with 2 Subnets
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
-  name: virtualNetworkName
-  location: location
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        virtualNetworkAddressPrefix
-      ]
-    }
-    subnets: [
-      {
-        name: subnet1Name
-        properties: {
-          addressPrefix: subnet1AddressPrefix
-        }
-      }
-      {
-        name: subnet2Name
-        properties: {
-          addressPrefix: subnet2AddressPrefix
-        }
-      }
-    ]
+module vMXresourceGroup '../../modules/resourceGroup/resourceGroup.bicep' = {
+  name: 'vMX-resourceGroup'
+  scope: subscription()
+  params: {
+    location: location
+    resourceGroupName: vnetResourceGroup
   }
 }
 
-// Step 1: Create User Assigned Managed Identity
+// VNET deployment
+module vnet '../../modules/networking/vnet.bicep' = {
+  name: 'vnetDeployment'
+  dependsOn: [vMXresourceGroup]
+  scope: resourceGroup(vnetResourceGroup)
+  params: {
+    location: location
+    vnetName: vnetName
+    addressPrefix: virtualNetworkAddressPrefix
+    subnet1Name: subnet1Name
+    subnet1AddressPrefix: subnet1AddressPrefix
+    subnet2Name: subnet2Name
+    subnet2AddressPrefix: subnet2AddressPrefix
+  }
+}
+
+// Create User Assigned Managed Identity
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${applicationResourceName}-identity'
   location: location
 }
-// Assign Key Vault Administrator role to the managed identity
+
+// Assign Key Vault Administrator role
 resource kvAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().subscriptionId, managedIdentity.id, keyVaultName)
   properties: {
@@ -59,7 +59,7 @@ resource kvAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-// Deployment script with cleanup
+// Deployment script for Meraki auth token
 resource script 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   name: 'getMerakiAuthToken'
   location: location
@@ -107,11 +107,6 @@ resource script 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         
         $DeploymentScriptOutputs = @{}
         $DeploymentScriptOutputs['merakiAuthToken'] = $response.token
-        
-        # Cleanup: Remove the Key Vault Administrator role
-        #$roleDefinitionId = "/subscriptions/$($env:SUBSCRIPTION_ID)/providers/Microsoft.Authorization/roleDefinitions/00482a5a-887f-4fb3-b363-3b7fe8e74483"
-        #$roleAssignmentId = "/subscriptions/$($env:SUBSCRIPTION_ID)/resourceGroups/$($env:RESOURCE_GROUP)/providers/Microsoft.Authorization/roleAssignments/$($env:MANAGED_IDENTITY_ID)"
-        #Remove-AzRoleAssignment -ObjectId $env:MANAGED_IDENTITY_ID -RoleDefinitionId $roleDefinitionId -Scope $roleAssignmentId
       } catch {
         $DeploymentScriptOutputs['error'] = $_.Exception.Message
       }
@@ -120,53 +115,23 @@ resource script 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   }
 }
 
-// Step 3: Deploy the Cisco Meraki vMX Appliance using the Token
-resource vmx 'Microsoft.Solutions/applications@2017-09-01' = {
-  name: applicationResourceName
-  location: resourceGroup().location
-  kind: 'MarketPlace'
-  plan: {
-    name: 'cisco-meraki-vmx'
-    product: 'cisco-meraki-vmx'
-    publisher: 'cisco'
-    version: '15.37.4'
-  }
-  properties: {
+// VMX deployment
+module vmx '../../modules/vmx-appliance/vmx.bicep' = {
+  name: 'vmxDeployment'
+  scope: resourceGroup(vnetResourceGroup)
+  params: {
+    location: location
+    vnetName: vnetName
+    vmName: vmName
+    virtualMachineSize: virtualMachineSize
+    zone: zone
+    merakiAuthToken: script.properties.outputs.merakiAuthToken
     managedResourceGroupId: managedResourceGroupId
-    parameters: {
-      location: {
-        value: location
-      }
-      vmName: {
-        value: vmName
-      }
-      merakiAuthToken: {
-        value: script.properties.outputs.merakiAuthToken
-      }
-      zone: {
-        value: zone
-      }
-      virtualNetworkName: {
-        value: virtualNetworkName
-      }
-      virtualNetworkAddressPrefix: {
-        value: virtualNetworkAddressPrefix
-      }
-      virtualNetworkNewOrExisting: {
-        value: virtualNetworkNewOrExisting
-      }
-      virtualNetworkResourceGroup: {
-        value: virtualNetworkResourceGroup
-      }
-      virtualMachineSize: {
-        value: virtualMachineSize
-      }
-      subnetName: {
-        value: subnet1Name
-      }
-      subnetAddressPrefix: {
-        value: subnet1AddressPrefix
-      }
-    }
+    applicationResourceName: applicationResourceName
+    virtualNetworkNewOrExisting: virtualNetworkNewOrExisting
+    virtualNetworkResourceGroup: vnetResourceGroup
+    virtualNetworkAddressPrefix: virtualNetworkAddressPrefix
+    subnet1Name: subnet1Name
+    subnet1AddressPrefix: subnet1AddressPrefix
   }
-}
+} 

@@ -1,21 +1,34 @@
-param location string
-param virtualNetworkName string
-param virtualNetworkAddressPrefix string
-param virtualNetworkNewOrExisting string
-param subnet1Name string
-param subnet1AddressPrefix string
-param subnet2Name string
-param subnet2AddressPrefix string
-param zone string
-param virtualNetworkResourceGroup string
-param virtualMachineSize string
-param applicationResourceName string
-param keyVaultName string
-param keyVaultResourceGroup string
-param vmName string
+param location string = 'northeurope'
+param virtualNetworkName string = 'vnet-jp-vmxtest-neu-01'
+param virtualNetworkAddressPrefix string = '172.16.0.0/28'
+param virtualNetworkNewOrExisting string = 'existing'
+param subnet1Name string = 'snet-vmx-subnet1'
+param subnet1AddressPrefix string = '172.16.0.0/29'
+param subnet2Name string = 'snet-vmx-subnet2'
+param subnet2AddressPrefix string = '172.16.0.8/29'
+param zone string = '0'
+param virtualNetworkResourceGroup string = 'jp-rg-ne-001'
+param virtualMachineSize string = 'Standard_F4s_v2'
+param applicationResourceName string = 'vmxdevneu'
+param managedResourceGroupId string = '${subscription().id}/resourceGroups/${take('${resourceGroup().name}-${uniqueString(resourceGroup().id)}${uniqueString(applicationResourceName)}', 90)}' 
 
-// This parameter can stay in the bicep file as it's dynamically generated
-param managedResourceGroupId string = '${subscription().id}/resourceGroups/${take('${resourceGroup().name}-${uniqueString(resourceGroup().id)}${uniqueString(applicationResourceName)}', 90)}'
+
+param keyVaultName string = 'vmx-keyvault'
+param keyVaultResourceGroup string = 'jp-rg-ne-001'
+
+// Replace these parameters with Key Vault references
+param vmName string = 'vmx-jp-neu'
+// Remove the hardcoded values and reference Key Vault secrets
+
+resource apiAuthKeySecret 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' existing = {
+  name: '${keyVaultName}/apiAuthKey'
+  scope: resourceGroup(keyVaultResourceGroup)
+}
+
+resource vmxSerialSecret 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' existing = {
+  name: '${keyVaultName}/testvmxSerial'
+  scope: resourceGroup(keyVaultResourceGroup)
+}
 
 // Step 1: Create the Virtual Network with 2 Subnets
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
@@ -49,6 +62,17 @@ resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: '${applicationResourceName}-identity'
   location: location
 }
+
+module updateKeyVaultPolicyModule 'updateKeyVaultPolicy.bicep' = {
+  name: 'updateKeyVaultPolicyDeployment'
+  scope: resourceGroup(keyVaultResourceGroup)
+  params: {
+    keyVaultName: keyVaultName
+    keyVaultResourceGroup: keyVaultResourceGroup
+    principalId: managedIdentity.properties.principalId
+  }
+}
+
 // Assign Key Vault Administrator role to the managed identity
 resource kvAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().subscriptionId, managedIdentity.id, keyVaultName)
@@ -109,9 +133,9 @@ resource script 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
         $DeploymentScriptOutputs['merakiAuthToken'] = $response.token
         
         # Cleanup: Remove the Key Vault Administrator role
-        #$roleDefinitionId = "/subscriptions/$($env:SUBSCRIPTION_ID)/providers/Microsoft.Authorization/roleDefinitions/00482a5a-887f-4fb3-b363-3b7fe8e74483"
-        #$roleAssignmentId = "/subscriptions/$($env:SUBSCRIPTION_ID)/resourceGroups/$($env:RESOURCE_GROUP)/providers/Microsoft.Authorization/roleAssignments/$($env:MANAGED_IDENTITY_ID)"
-        #Remove-AzRoleAssignment -ObjectId $env:MANAGED_IDENTITY_ID -RoleDefinitionId $roleDefinitionId -Scope $roleAssignmentId
+        $roleDefinitionId = "/subscriptions/$($env:SUBSCRIPTION_ID)/providers/Microsoft.Authorization/roleDefinitions/00482a5a-887f-4fb3-b363-3b7fe8e74483"
+        $roleAssignmentId = "/subscriptions/$($env:SUBSCRIPTION_ID)/resourceGroups/$($env:RESOURCE_GROUP)/providers/Microsoft.Authorization/roleAssignments/$($env:MANAGED_IDENTITY_ID)"
+        Remove-AzRoleAssignment -ObjectId $env:MANAGED_IDENTITY_ID -RoleDefinitionId $roleDefinitionId -Scope $roleAssignmentId
       } catch {
         $DeploymentScriptOutputs['error'] = $_.Exception.Message
       }

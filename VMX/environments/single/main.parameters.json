@@ -6,10 +6,10 @@
             "value": "northeurope"
         },
         "vnetName": {
-            "value": "vnet-vmx-test-neu-01"
+            "value": "vnet-vmx-env-neu-01"
         },
         "vnetResourceGroup": {
-            "value": "rg-vmx-test-neu-001"
+            "value": "rg-vmx-env-neu-001"
         },
         "virtualNetworkAddressPrefix": {
             "value": "172.16.0.0/28"
@@ -30,16 +30,16 @@
             "value": "Standard_F4s_v2"
         },
         "applicationResourceName": {
-            "value": "vmx-test-neu"
+            "value": "vmx-neu-001"
         },
         "keyVaultName": {
-            "value": "vmx-keyvault"
+            "value": "kv-vmx-keyvault"
         },
         "keyVaultResourceGroup": {
-            "value": "jp-rg-ne-001"
+            "value": "rg-keyvault-env-neu-001"
         },
         "vmName": {
-            "value": "vmx-test-neu"
+            "value": "vmx-neu-001"
         }
     }
 } 

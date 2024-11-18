@@ -3,8 +3,8 @@
 This repository contains the Infrastructure as Code (IaC) templates for deploying Cisco Meraki vMX appliances in both test and production environments.
 
 ## Environment Structure
-- **Production**: Dual VMX appliances with load balancer
-- **Test**: Single VMX appliance
+- **HA**: Dual VMX appliances with load balancer - Still under development
+- **SINGLE**: Single VMX appliance
 
 ## Summary of Code Functionality
 
